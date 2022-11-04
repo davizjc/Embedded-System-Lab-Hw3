@@ -1,0 +1,80 @@
+#include "mbed.h"
+
+Thread thread_master;
+Thread thread_slave;
+
+static BufferedSerial device1(D10, D9); // tx, rx  D10:tx  D9:rx
+static BufferedSerial device2(D1, D0);  // tx, rx   D1:tx   D0:rx
+
+int slave() {
+    while (1) {
+    int mode;
+    int value;
+    char buf[3];
+    char msg[3];
+
+    if (device2.size()) { // with at least 1 char
+      device2.read(buf, 1);
+      mode = buf[0];
+      if (device2.size()) { // with at least 1 char
+        device2.read(buf, 1);
+        value = buf[0];
+        printf("Slave Read: mode=%d, value=%d\n", mode, value);
+
+        if (device2.writable()) {
+          if (mode == 1) { // mode!=0
+            value = value + 1;
+            msg[0] = mode;
+            msg[1] = value;
+            printf("Slave Write: mode=%d, value=%d\n", mode, value);
+            device2.write(msg, 2);
+          } else if (mode == 2) {
+            value = value + 2;
+            msg[0] = mode;
+            msg[1] = value;
+            printf("Slave Write: mode=%d, value=%d\n", mode, value);
+            device2.write(msg, 2);
+          } else {
+            msg[0] = mode;
+            msg[1] = value;
+            printf("Slave Write: mode=%d, value=%d\n", mode, value);
+            device2.write(msg, 2);
+          }
+          ThisThread::sleep_for(100ms); //wait after write
+        }
+      }
+    }
+  }
+}
+
+void master() {
+  
+  printf("start\n");
+   
+  //while(1){
+      int buf1[6] = {0,0,1,0,2,0};    // mode, value , mode , value , mode , value .  3 time
+      for (int i = 0; i < 6; i++) {
+        device1.write(&buf1[i], 1); //number of byte 
+        ThisThread::sleep_for(1s);
+        } 
+    //}
+}
+
+int main() {
+  // Set desired properties (9600-8-N-1).
+  device1.set_baud(9600);
+  device1.set_format(
+      /* bits */ 8,
+      /* parity */ BufferedSerial::None,
+      /* stop bit */ 1);
+
+  // Set desired properties (9600-8-N-1).
+  device2.set_baud(9600);
+  device2.set_format(
+      /* bits */ 8,
+      /* parity */ BufferedSerial::None,
+      /* stop bit */ 1);
+
+  thread_slave.start(slave);
+  thread_master.start(master);
+}
