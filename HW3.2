@@ -1,0 +1,101 @@
+#include "mbed.h"
+
+Thread thread_master;
+Thread thread_slave;
+
+I2CSlave i2c_slave(D14, D15);
+I2C mas(A4, A5);
+int mode=0;
+int value=0;
+char msg[2]={0,0};
+char buf[10];
+
+int slave() {
+  i2c_slave.address(0xA0);
+  while (1) {
+    int receive_code = i2c_slave.receive();
+    switch (receive_code) {
+    case I2CSlave::ReadAddressed: //The master has requested a read from this slave.
+      if (mode==1) { // mode!=0
+        value = value + 1;
+        msg[0] = mode;
+        msg[1] = value;
+        printf("Slave Write: mode=%d, value=%d\n", mode, value);
+        i2c_slave.write(msg, 2);
+      } else if (mode==2) {
+        value = value + 2;
+        msg[0] = mode;
+        msg[1] = value;
+        printf("Slave Write: mode=%d, value=%d\n", mode, value);
+        i2c_slave.write(msg, 2);
+      } else {
+        msg[0] = mode;
+        msg[1] = value;
+        printf("Slave Write: mode=%d, value=%d\n", mode, value);
+        i2c_slave.write(msg, 2);
+      }
+      break;
+    case I2CSlave::WriteGeneral:   //The master is writing to all slave.
+      i2c_slave.read(buf, 2);
+      mode = buf[0];
+      value = buf[1];
+      printf("Slave Read General: mode=%d, value=%d\n", mode, value);
+      break;
+    case I2CSlave::WriteAddressed: //The master is writing to this slave.
+      i2c_slave.read(buf, 2);
+      mode = buf[0];
+      value = buf[1];
+      printf("Slave Read Addressed: mode=%d, value=%d\n", mode, value);
+      break;
+    }
+    
+    for (int i = 0; i < 10; i++) {
+      buf[i] = 0; // Clear buffer 
+    }
+
+  }
+}
+
+
+void master() {
+    printf("round 1 mode 0 \n");
+    
+    char mode1[3] = {0x00,0x01,0x02}; 
+    printf("mode send = %d \n", mode1[0]);
+    mas.write(0xA0,mode1,2);
+    printf("master thread write: mode=%d, value=%d\n", buf[0], buf[1]);
+    ThisThread::sleep_for(1s);
+    mas.read(0xA0,msg,2);
+    printf("master thread read: mode=%d, value=%d\n", msg[0], msg[1]);
+    ThisThread::sleep_for(1s);
+
+    printf("round 2 mode 1 \n");
+
+    char mode2[3] = {0x01,0x01,0x02}; 
+    printf("mode send = %d \n", mode2[0]);
+    mas.write(0xA0,mode2,2);
+    printf("master thread write: mode=%d, value=%d\n", buf[0], buf[1]);
+    ThisThread::sleep_for(1s);
+    mas.read(0xA0,msg,2);
+    printf("master thread read: mode=%d, value=%d\n", msg[0], msg[1]);
+    ThisThread::sleep_for(1s);
+
+    printf("round 3 mode 2 \n");
+
+    char mode3[3] = {0x02,0x01,0x02}; 
+    printf("mode send = %d \n", mode3[0]);
+    mas.write(0xA0,mode3,2);
+    printf("master thread write: mode=%d, value=%d\n", buf[0], buf[1]);
+    ThisThread::sleep_for(1s);
+    mas.read(0xA0,msg,2);
+    printf("master thread read: mode=%d, value=%d\n", msg[0], msg[1]);
+    ThisThread::sleep_for(1s);
+}
+
+
+int main() {
+  thread_slave.start(slave);
+  thread_master.start(master);
+}
+
+
